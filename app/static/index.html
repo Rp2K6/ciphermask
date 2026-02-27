@@ -3,11 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>PII Redaction &amp; Privacy Intelligence</title>
+  <title>CipherMask – AI Privacy Intelligence</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
-    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; background: linear-gradient(135deg, #0f0a1a 0%, #0d1117 40%, #0a0f1e 100%); }
     .scrollable { max-height: 320px; overflow-y: auto; }
     #redactedOutput { white-space: pre-wrap; word-break: break-word; }
     textarea:focus, input[type="file"]:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; }
@@ -16,36 +18,75 @@
     .json-number { color: #fbbf24; }
     .json-bool { color: #f472b6; }
     .json-null { color: #6b7280; }
-    .drop-active { border-color: #6366f1 !important; background: rgba(99,102,241,0.05) !important; }
-    .toggle-wrapper {
-      transition: background-color 0.2s ease;
+    .drop-active { border-color: #818cf8 !important; background: rgba(99,102,241,0.08) !important; box-shadow: 0 0 24px rgba(99,102,241,0.15) !important; }
+    .toggle-wrapper { transition: background-color 0.2s ease; }
+    .toggle-dot { transition: transform 0.2s ease; }
+    .card {
+      background: linear-gradient(145deg, rgba(17,24,39,0.8) 0%, rgba(15,20,35,0.9) 100%);
+      border: 1px solid rgba(75,85,99,0.3);
+      backdrop-filter: blur(12px);
+      transition: border-color 0.3s ease, box-shadow 0.3s ease;
     }
-    .toggle-dot {
-      transition: transform 0.2s ease;
+    .card:hover { border-color: rgba(99,102,241,0.25); box-shadow: 0 0 20px rgba(99,102,241,0.06); }
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+      box-shadow: 0 2px 12px rgba(99,102,241,0.3);
+      transition: all 0.25s ease;
     }
+    .btn-primary:hover { box-shadow: 0 4px 20px rgba(99,102,241,0.45); transform: translateY(-1px); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-secondary {
+      background: rgba(31,41,55,0.6);
+      border: 1px solid rgba(75,85,99,0.4);
+      transition: all 0.25s ease;
+    }
+    .btn-secondary:hover { background: rgba(55,65,81,0.6); border-color: rgba(107,114,128,0.5); }
+    .scorecard {
+      background: linear-gradient(145deg, rgba(17,24,39,0.9) 0%, rgba(15,20,35,0.95) 100%);
+      border: 1px solid rgba(75,85,99,0.25);
+      transition: transform 0.3s ease, box-shadow 0.3s ease;
+    }
+    .scorecard:hover { transform: translateY(-2px); box-shadow: 0 8px 30px rgba(0,0,0,0.3); }
+    .glow-line {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(99,102,241,0.3), transparent);
+    }
+    .section-appear { animation: fadeUp 0.4s ease-out; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .scrollable::-webkit-scrollbar { width: 6px; }
+    .scrollable::-webkit-scrollbar-track { background: transparent; }
+    .scrollable::-webkit-scrollbar-thumb { background: rgba(75,85,99,0.5); border-radius: 3px; }
+    .scrollable::-webkit-scrollbar-thumb:hover { background: rgba(107,114,128,0.6); }
   </style>
 </head>
-<body class="bg-gray-950 text-gray-100 min-h-screen">
+<body class="text-gray-100 min-h-screen">
 
   <!-- Header -->
-  <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-30">
+  <header class="border-b border-gray-800/60 bg-gray-900/60 backdrop-blur-xl sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-indigo-400">Privacy Intelligence Platform</h1>
-        <p class="text-xs text-gray-500 mt-0.5">PII Redaction &middot; Risk Scoring &middot; Compliance</p>
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">CipherMask &ndash; AI Privacy Intelligence</h1>
+          <p class="text-[11px] text-gray-500 mt-0.5">Detect &middot; Quantify &middot; Sanitize</p>
+        </div>
       </div>
-      <span class="text-[10px] bg-gray-800 text-gray-400 rounded px-2 py-1 font-mono">v1.0.0</span>
+      <span class="text-[10px] bg-gray-800/60 text-gray-500 rounded-full px-3 py-1 font-mono border border-gray-700/40">v1.0.0</span>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+  <main class="max-w-7xl mx-auto px-6 py-10 space-y-8">
 
     <!-- Toggle Controls -->
-    <section class="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
+    <section class="card rounded-2xl p-5 space-y-4">
       <!-- Privacy Toggle -->
       <div class="flex items-center justify-between">
         <div>
-          <p class="text-sm font-medium text-gray-300">Include Sensitive Output</p>
+          <p class="text-sm font-medium text-gray-200">Include Sensitive Output</p>
           <p id="sensitiveHint" class="text-[11px] text-gray-500 mt-0.5">When off, redacted text and detected entities are not returned from the server.</p>
         </div>
         <button
@@ -59,9 +100,9 @@
         </button>
       </div>
       <!-- JSON Toggle -->
-      <div class="flex items-center justify-between border-t border-gray-800 pt-4">
+      <div class="flex items-center justify-between border-t border-gray-700/30 pt-4">
         <div>
-          <p class="text-sm font-medium text-gray-300">Show Technical JSON</p>
+          <p class="text-sm font-medium text-gray-200">Show Technical JSON</p>
           <p class="text-[11px] text-gray-500 mt-0.5">Toggle visibility of the raw JSON response panel.</p>
         </div>
         <button
@@ -77,46 +118,48 @@
     </section>
 
     <!-- Text Input Section -->
-    <section class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-      <label for="inputText" class="block text-sm font-medium text-gray-300 mb-2">Paste text for analysis</label>
+    <section class="card rounded-2xl p-6">
+      <label for="inputText" class="block text-sm font-semibold text-gray-300 mb-3">Paste text for analysis</label>
       <textarea
         id="inputText"
         rows="6"
-        class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 resize-y"
+        class="w-full bg-gray-950/60 border border-gray-700/50 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 resize-y transition-colors focus:border-indigo-500/50"
         placeholder="Enter or paste text containing potential PII..."
       ></textarea>
-      <div class="mt-4 flex items-center gap-4">
+      <div class="mt-5 flex items-center gap-4">
         <button
           id="analyzeBtn"
-          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+          class="btn-primary px-7 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
         >Analyze Text</button>
         <button
           id="clearBtn"
-          class="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-xl transition"
+          class="btn-secondary px-5 py-2.5 text-gray-300 text-sm font-medium rounded-xl"
         >Clear</button>
         <span id="statusMsg" class="text-xs text-gray-500"></span>
       </div>
     </section>
 
     <!-- Divider -->
-    <div class="flex items-center gap-4">
-      <div class="flex-1 border-t border-gray-800"></div>
-      <span class="text-xs text-gray-600 uppercase tracking-widest">or upload a file</span>
-      <div class="flex-1 border-t border-gray-800"></div>
+    <div class="flex items-center gap-4 py-1">
+      <div class="flex-1 glow-line"></div>
+      <span class="text-[11px] text-gray-600 uppercase tracking-[0.2em] font-medium">or upload a file</span>
+      <div class="flex-1 glow-line"></div>
     </div>
 
     <!-- File Upload Section -->
-    <section class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
-      <label class="block text-sm font-medium text-gray-300 mb-3">Upload a file for analysis</label>
+    <section class="card rounded-2xl p-6">
+      <label class="block text-sm font-semibold text-gray-300 mb-3">Upload a file for analysis</label>
       <div
         id="dropZone"
-        class="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center transition mb-4 cursor-pointer"
+        class="border-2 border-dashed border-gray-700/50 rounded-xl p-10 text-center transition-all duration-300 mb-5 cursor-pointer hover:border-indigo-500/30 hover:bg-indigo-500/[0.02]"
       >
-        <svg class="w-10 h-10 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
-        </svg>
-        <p class="text-sm text-gray-400 mb-1">Drag &amp; drop a file here, or <span class="text-indigo-400 underline">browse</span></p>
+        <div class="w-14 h-14 mx-auto mb-4 rounded-full bg-gray-800/60 flex items-center justify-center">
+          <svg class="w-7 h-7 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+              d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+          </svg>
+        </div>
+        <p class="text-sm text-gray-400 mb-1">Drag &amp; drop a file here, or <span class="text-indigo-400 underline cursor-pointer">browse</span></p>
         <p class="text-[11px] text-gray-600">.txt, .csv, .pdf, .docx, .png, .jpg, .jpeg</p>
         <input
           type="file"
@@ -126,7 +169,7 @@
         />
       </div>
       <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div id="fileChip" class="hidden flex items-center gap-2 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+        <div id="fileChip" class="hidden flex items-center gap-2 px-3 py-1.5 bg-gray-800/60 border border-gray-700/40 rounded-lg text-sm">
           <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
               d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -140,7 +183,7 @@
         </div>
         <button
           id="uploadBtn"
-          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed"
+          class="btn-primary px-7 py-2.5 text-white text-sm font-semibold rounded-xl disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none"
           disabled
         >Analyze File</button>
         <span id="fileStatusMsg" class="text-xs text-gray-500"></span>
@@ -149,44 +192,44 @@
 
     <!-- Scorecards -->
     <section id="scorecards" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-5">
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
-        <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Risk Score</p>
+      <div class="scorecard rounded-2xl p-6 text-center">
+        <p class="text-[11px] uppercase tracking-[0.15em] text-gray-500 mb-2 font-medium">Risk Score</p>
         <p id="riskScore" class="text-5xl font-extrabold text-red-400">&mdash;</p>
       </div>
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
-        <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Safety Score</p>
+      <div class="scorecard rounded-2xl p-6 text-center">
+        <p class="text-[11px] uppercase tracking-[0.15em] text-gray-500 mb-2 font-medium">Safety Score</p>
         <p id="safetyScore" class="text-5xl font-extrabold text-emerald-400">&mdash;</p>
       </div>
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center flex flex-col items-center justify-center">
-        <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Compliance Status</p>
+      <div class="scorecard rounded-2xl p-6 text-center flex flex-col items-center justify-center">
+        <p class="text-[11px] uppercase tracking-[0.15em] text-gray-500 mb-3 font-medium">Compliance Status</p>
         <span id="complianceBadge" class="inline-block px-4 py-1.5 rounded-full text-sm font-bold">&mdash;</span>
       </div>
     </section>
 
     <!-- Charts -->
     <section id="chartsSection" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <div class="card rounded-2xl p-6">
         <h3 class="text-sm font-semibold text-gray-400 mb-4">Category Distribution</h3>
         <canvas id="categoryChart" height="260"></canvas>
       </div>
-      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <div class="card rounded-2xl p-6">
         <h3 class="text-sm font-semibold text-gray-400 mb-4">Label Distribution</h3>
         <canvas id="labelChart" height="260"></canvas>
       </div>
     </section>
 
     <!-- Detected Entities Table -->
-    <section id="entitiesSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+    <section id="entitiesSection" class="hidden card rounded-2xl p-6">
       <h3 class="text-sm font-semibold text-gray-400 mb-4">Detected Entities</h3>
-      <div class="scrollable rounded-xl border border-gray-800">
+      <div class="scrollable rounded-xl border border-gray-800/60 overflow-hidden">
         <table class="w-full text-sm">
-          <thead class="bg-gray-800 text-gray-400 sticky top-0">
+          <thead class="bg-gray-800/70 text-gray-400 sticky top-0">
             <tr>
-              <th class="text-left px-4 py-2 font-medium">#</th>
-              <th class="text-left px-4 py-2 font-medium">Value</th>
-              <th class="text-left px-4 py-2 font-medium">Label</th>
-              <th class="text-left px-4 py-2 font-medium">Category</th>
-              <th class="text-left px-4 py-2 font-medium">Method</th>
+              <th class="text-left px-4 py-2.5 font-medium">#</th>
+              <th class="text-left px-4 py-2.5 font-medium">Value</th>
+              <th class="text-left px-4 py-2.5 font-medium">Label</th>
+              <th class="text-left px-4 py-2.5 font-medium">Category</th>
+              <th class="text-left px-4 py-2.5 font-medium">Method</th>
             </tr>
           </thead>
           <tbody id="entitiesBody" class="divide-y divide-gray-800"></tbody>
@@ -195,21 +238,21 @@
     </section>
 
     <!-- Redacted Text -->
-    <section id="redactedSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+    <section id="redactedSection" class="hidden card rounded-2xl p-6">
       <h3 class="text-sm font-semibold text-gray-400 mb-4">Redacted Text</h3>
       <div
         id="redactedOutput"
-        class="bg-gray-950 border border-gray-800 rounded-xl px-5 py-4 text-sm text-gray-300 scrollable"
+        class="bg-gray-950/60 border border-gray-800/50 rounded-xl px-5 py-4 text-sm text-gray-300 scrollable"
       ></div>
     </section>
 
     <!-- JSON Response -->
-    <section id="jsonSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+    <section id="jsonSection" class="hidden card rounded-2xl p-6">
       <div class="flex items-center justify-between mb-4">
         <h3 class="text-sm font-semibold text-gray-400">JSON Response</h3>
         <button
           id="copyJsonBtn"
-          class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-lg transition"
+          class="btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-gray-400 text-xs rounded-lg"
         >
           <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -220,14 +263,14 @@
       </div>
       <pre
         id="jsonOutput"
-        class="bg-gray-950 border border-gray-800 rounded-xl px-5 py-4 text-xs leading-relaxed overflow-auto max-h-[400px] font-mono"
+        class="bg-gray-950/60 border border-gray-800/50 rounded-xl px-5 py-4 text-xs leading-relaxed overflow-auto max-h-[400px] font-mono"
       ></pre>
     </section>
 
   </main>
 
-  <footer class="border-t border-gray-800 mt-12 py-4 text-center text-xs text-gray-600">
-    Privacy Intelligence Platform &mdash; In-memory processing only. No data is stored.
+  <footer class="border-t border-gray-800/40 mt-16 py-5 text-center text-xs text-gray-600">
+    CipherMask &mdash; In-memory processing only. No data is stored.
   </footer>
 
 <script>
