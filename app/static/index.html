@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PII Redaction &amp; Privacy Intelligence</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <style>
+    body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
+    .scrollable { max-height: 320px; overflow-y: auto; }
+    #redactedOutput { white-space: pre-wrap; word-break: break-word; }
+    textarea:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; }
+  </style>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen">
+
+  <!-- Header -->
+  <header class="border-b border-gray-800 bg-gray-900/80 backdrop-blur sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div>
+        <h1 class="text-xl font-bold tracking-tight text-indigo-400">Privacy Intelligence Platform</h1>
+        <p class="text-xs text-gray-500 mt-0.5">PII Redaction &middot; Risk Scoring &middot; Compliance</p>
+      </div>
+      <span class="text-[10px] bg-gray-800 text-gray-400 rounded px-2 py-1 font-mono">v1.0.0</span>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- Input Section -->
+    <section class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <label for="inputText" class="block text-sm font-medium text-gray-300 mb-2">Paste text for analysis</label>
+      <textarea
+        id="inputText"
+        rows="6"
+        class="w-full bg-gray-950 border border-gray-700 rounded-xl px-4 py-3 text-sm text-gray-200 placeholder-gray-600 resize-y"
+        placeholder="Enter or paste text containing potential PII..."
+      ></textarea>
+      <div class="mt-4 flex items-center gap-4">
+        <button
+          id="analyzeBtn"
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition"
+        >Analyze</button>
+        <button
+          id="clearBtn"
+          class="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-xl transition"
+        >Clear</button>
+        <span id="statusMsg" class="text-xs text-gray-500"></span>
+      </div>
+    </section>
+
+    <!-- Scorecards -->
+    <section id="scorecards" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-5">
+      <!-- Risk Score -->
+      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
+        <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Risk Score</p>
+        <p id="riskScore" class="text-5xl font-extrabold text-red-400">—</p>
+      </div>
+      <!-- Safety Score -->
+      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
+        <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Safety Score</p>
+        <p id="safetyScore" class="text-5xl font-extrabold text-emerald-400">—</p>
+      </div>
+      <!-- Compliance -->
+      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center flex flex-col items-center justify-center">
+        <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Compliance Status</p>
+        <span id="complianceBadge" class="inline-block px-4 py-1.5 rounded-full text-sm font-bold">—</span>
+      </div>
+    </section>
+
+    <!-- Charts -->
+    <section id="chartsSection" class="hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+        <h3 class="text-sm font-semibold text-gray-400 mb-4">Category Distribution</h3>
+        <canvas id="categoryChart" height="260"></canvas>
+      </div>
+      <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+        <h3 class="text-sm font-semibold text-gray-400 mb-4">Label Distribution</h3>
+        <canvas id="labelChart" height="260"></canvas>
+      </div>
+    </section>
+
+    <!-- Detected Entities Table -->
+    <section id="entitiesSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <h3 class="text-sm font-semibold text-gray-400 mb-4">Detected Entities</h3>
+      <div class="scrollable rounded-xl border border-gray-800">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-800 text-gray-400 sticky top-0">
+            <tr>
+              <th class="text-left px-4 py-2 font-medium">#</th>
+              <th class="text-left px-4 py-2 font-medium">Value</th>
+              <th class="text-left px-4 py-2 font-medium">Label</th>
+              <th class="text-left px-4 py-2 font-medium">Category</th>
+              <th class="text-left px-4 py-2 font-medium">Method</th>
+            </tr>
+          </thead>
+          <tbody id="entitiesBody" class="divide-y divide-gray-800"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Redacted Text -->
+    <section id="redactedSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <h3 class="text-sm font-semibold text-gray-400 mb-4">Redacted Text</h3>
+      <div
+        id="redactedOutput"
+        class="bg-gray-950 border border-gray-800 rounded-xl px-5 py-4 text-sm text-gray-300 scrollable"
+      ></div>
+    </section>
+
+  </main>
+
+  <footer class="border-t border-gray-800 mt-12 py-4 text-center text-xs text-gray-600">
+    Privacy Intelligence Platform &mdash; In-memory processing only. No data is stored.
+  </footer>
+
+<script>
+// ---------------------------------------------------------------------------
+// DOM refs
+// ---------------------------------------------------------------------------
+const inputText       = document.getElementById('inputText');
+const analyzeBtn      = document.getElementById('analyzeBtn');
+const clearBtn        = document.getElementById('clearBtn');
+const statusMsg       = document.getElementById('statusMsg');
+const scorecards      = document.getElementById('scorecards');
+const riskScoreEl     = document.getElementById('riskScore');
+const safetyScoreEl   = document.getElementById('safetyScore');
+const complianceBadge = document.getElementById('complianceBadge');
+const chartsSection   = document.getElementById('chartsSection');
+const entitiesSection = document.getElementById('entitiesSection');
+const entitiesBody    = document.getElementById('entitiesBody');
+const redactedSection = document.getElementById('redactedSection');
+const redactedOutput  = document.getElementById('redactedOutput');
+
+let categoryChart = null;
+let labelChart    = null;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+function show(...els) { els.forEach(el => el.classList.remove('hidden')); }
+function hide(...els) { els.forEach(el => el.classList.add('hidden')); }
+
+function complianceColor(status) {
+  if (status.startsWith('CRITICAL'))  return { bg: 'bg-red-600',    text: 'text-white' };
+  if (status.startsWith('HIGH'))      return { bg: 'bg-orange-500', text: 'text-white' };
+  if (status.startsWith('MODERATE'))  return { bg: 'bg-yellow-500', text: 'text-gray-900' };
+  return                                     { bg: 'bg-emerald-500', text: 'text-white' };
+}
+
+function riskColor(score) {
+  if (score > 80)  return 'text-red-400';
+  if (score > 50)  return 'text-orange-400';
+  if (score > 25)  return 'text-yellow-400';
+  return 'text-emerald-400';
+}
+
+function safetyColor(score) {
+  if (score >= 75) return 'text-emerald-400';
+  if (score >= 50) return 'text-yellow-400';
+  if (score >= 20) return 'text-orange-400';
+  return 'text-red-400';
+}
+
+const CHART_COLORS = [
+  '#818cf8', '#f472b6', '#34d399', '#fbbf24', '#f87171',
+  '#38bdf8', '#a78bfa', '#fb923c', '#4ade80', '#e879f9',
+];
+
+function destroyCharts() {
+  if (categoryChart) { categoryChart.destroy(); categoryChart = null; }
+  if (labelChart)    { labelChart.destroy();    labelChart = null; }
+}
+
+// ---------------------------------------------------------------------------
+// Chart rendering
+// ---------------------------------------------------------------------------
+function renderCategoryChart(dist) {
+  const labels = Object.keys(dist);
+  const data   = Object.values(dist);
+  const ctx    = document.getElementById('categoryChart').getContext('2d');
+  categoryChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Count',
+        data,
+        backgroundColor: ['#818cf8', '#fbbf24', '#f87171'],
+        borderRadius: 6,
+        maxBarThickness: 60,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#9ca3af' }, grid: { display: false } },
+        y: { beginAtZero: true, ticks: { color: '#9ca3af', stepSize: 1 }, grid: { color: '#1f2937' } },
+      },
+    },
+  });
+}
+
+function renderLabelChart(dist) {
+  const labels = Object.keys(dist);
+  const data   = Object.values(dist);
+  const ctx    = document.getElementById('labelChart').getContext('2d');
+  labelChart = new Chart(ctx, {
+    type: 'pie',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: CHART_COLORS.slice(0, labels.length),
+        borderWidth: 0,
+      }],
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#d1d5db', padding: 14, font: { size: 11 } },
+        },
+      },
+    },
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Entities table
+// ---------------------------------------------------------------------------
+function renderEntities(entities) {
+  entitiesBody.innerHTML = '';
+  entities.forEach((e, i) => {
+    const tr = document.createElement('tr');
+    tr.className = 'hover:bg-gray-800/50 transition';
+    tr.innerHTML = `
+      <td class="px-4 py-2 text-gray-500">${i + 1}</td>
+      <td class="px-4 py-2 font-mono text-indigo-300">${escapeHtml(e.value)}</td>
+      <td class="px-4 py-2"><span class="bg-gray-800 px-2 py-0.5 rounded text-xs">${e.label}</span></td>
+      <td class="px-4 py-2 text-gray-400">${e.category}</td>
+      <td class="px-4 py-2 text-gray-500 text-xs uppercase">${e.detection_method}</td>
+    `;
+    entitiesBody.appendChild(tr);
+  });
+}
+
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// ---------------------------------------------------------------------------
+// Redacted text with highlights
+// ---------------------------------------------------------------------------
+function renderRedacted(text) {
+  // Highlight bracketed placeholders
+  const escaped = escapeHtml(text);
+  redactedOutput.innerHTML = escaped.replace(
+    /\[([A-Z_]+)\]/g,
+    '<span class="bg-red-900/60 text-red-300 px-1 rounded font-semibold">[$1]</span>'
+  );
+}
+
+// ---------------------------------------------------------------------------
+// API call
+// ---------------------------------------------------------------------------
+async function analyze() {
+  const text = inputText.value.trim();
+  if (!text) { statusMsg.textContent = 'Please enter some text.'; return; }
+
+  analyzeBtn.disabled = true;
+  analyzeBtn.textContent = 'Analyzing...';
+  statusMsg.textContent = '';
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderResults(data);
+  } catch (err) {
+    statusMsg.textContent = `Error: ${err.message}`;
+    hide(scorecards, chartsSection, entitiesSection, redactedSection);
+  } finally {
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = 'Analyze';
+  }
+}
+
+function renderResults(data) {
+  // Scorecards
+  riskScoreEl.textContent = data.risk_score;
+  riskScoreEl.className   = `text-5xl font-extrabold ${riskColor(data.risk_score)}`;
+
+  safetyScoreEl.textContent = data.safety_score;
+  safetyScoreEl.className   = `text-5xl font-extrabold ${safetyColor(data.safety_score)}`;
+
+  const cc = complianceColor(data.compliance_status);
+  complianceBadge.textContent = data.compliance_status;
+  complianceBadge.className   = `inline-block px-4 py-1.5 rounded-full text-sm font-bold ${cc.bg} ${cc.text}`;
+
+  show(scorecards);
+
+  // Charts
+  destroyCharts();
+  renderCategoryChart(data.category_distribution);
+  renderLabelChart(data.label_distribution);
+  show(chartsSection);
+
+  // Entities
+  renderEntities(data.detected_entities);
+  show(entitiesSection);
+
+  // Redacted text
+  renderRedacted(data.redacted_text);
+  show(redactedSection);
+
+  statusMsg.textContent = `Done — ${data.detected_entities.length} entities detected.`;
+}
+
+// ---------------------------------------------------------------------------
+// Clear
+// ---------------------------------------------------------------------------
+function clearAll() {
+  inputText.value = '';
+  statusMsg.textContent = '';
+  hide(scorecards, chartsSection, entitiesSection, redactedSection);
+  destroyCharts();
+  entitiesBody.innerHTML = '';
+  redactedOutput.innerHTML = '';
+}
+
+// ---------------------------------------------------------------------------
+// Event bindings
+// ---------------------------------------------------------------------------
+analyzeBtn.addEventListener('click', analyze);
+clearBtn.addEventListener('click', clearAll);
+inputText.addEventListener('keydown', (e) => {
+  if (e.ctrlKey && e.key === 'Enter') analyze();
+});
+</script>
+</body>
+</html>
