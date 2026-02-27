@@ -12,6 +12,10 @@ class AnalyzeRequest(BaseModel):
         max_length=100_000,
         description="Raw text to analyse for PII.",
     )
+    include_sensitive_output: bool = Field(
+        default=True,
+        description="When False, redacted_text and detected_entities are omitted.",
+    )
 
 
 class DetectedEntity(BaseModel):
@@ -33,5 +37,5 @@ class AnalyzeResponse(BaseModel):
     compliance_status: str
     category_distribution: CategoryDistribution
     label_distribution: dict[str, int]
-    redacted_text: str
-    detected_entities: list[DetectedEntity]
+    redacted_text: str | None = None
+    detected_entities: list[DetectedEntity] | None = None

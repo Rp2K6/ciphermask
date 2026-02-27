@@ -2,16 +2,18 @@
 FastAPI application entry point.
 
 Wires up the service layer, mounts static files,
-and exposes the ``POST /analyze`` endpoint.
+and exposes the ``POST /analyze`` and ``POST /analyze-file`` endpoints.
 """
 
 from __future__ import annotations
 
+import os
+import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
 
 import spacy
-from fastapi import FastAPI
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,6 +35,8 @@ from app.services import (
 )
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+
+ALLOWED_EXTENSIONS = {".txt", ".csv", ".pdf", ".docx", ".png", ".jpg", ".jpeg"}
 
 
 @asynccontextmanager
@@ -60,52 +64,30 @@ app.add_middleware(
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
 
-# -- Routes ------------------------------------------------------------------
+# -- Shared pipeline ---------------------------------------------------------
 
-@app.get("/", include_in_schema=False)
-async def root():
-    """Serve the SPA dashboard."""
-    return FileResponse(str(STATIC_DIR / "index.html"))
-
-
-@app.post("/analyze", response_model=AnalyzeResponse)
-async def analyze(payload: AnalyzeRequest):
-    """
-    Full privacy analysis pipeline:
-
-    detect -> classify -> score -> comply -> redact -> distribute
-    """
-    text = payload.text
-
-    # 1. Detection (hybrid: regex + NLP)
+def _run_pipeline(text: str, include_sensitive: bool = True) -> AnalyzeResponse:
     raw_entities = pii_detector.detect(text)
-
-    # 2. Classification
     classified = classifier.classify(raw_entities)
-
-    # 3. Risk & safety scoring
     risk = risk_engine.compute_risk_score(classified)
     safety = risk_engine.compute_safety_score(risk)
-
-    # 4. Compliance decision
     compliance = compliance_engine.evaluate(risk)
-
-    # 5. Redaction
-    redacted = redaction_engine.redact(text, classified)
-
-    # 6. Distribution
     cat_dist, label_dist = distribution_engine.compute_distributions(classified)
 
-    # 7. Build response entities (without internal offsets)
-    detected = [
-        DetectedEntity(
-            value=e["value"],
-            label=e["label"],
-            category=e["category"],
-            detection_method=e["detection_method"],
-        )
-        for e in classified
-    ]
+    redacted = None
+    detected = None
+
+    if include_sensitive:
+        redacted = redaction_engine.redact(text, classified)
+        detected = [
+            DetectedEntity(
+                value=e["value"],
+                label=e["label"],
+                category=e["category"],
+                detection_method=e["detection_method"],
+            )
+            for e in classified
+        ]
 
     return AnalyzeResponse(
         risk_score=risk,
@@ -116,3 +98,47 @@ async def analyze(payload: AnalyzeRequest):
         redacted_text=redacted,
         detected_entities=detected,
     )
+
+
+# -- Routes ------------------------------------------------------------------
+
+@app.get("/", include_in_schema=False)
+async def root():
+    """Serve the SPA dashboard."""
+    return FileResponse(str(STATIC_DIR / "index.html"))
+
+
+@app.post("/analyze", response_model=AnalyzeResponse)
+async def analyze(payload: AnalyzeRequest):
+    """Text-based privacy analysis pipeline."""
+    return _run_pipeline(payload.text, payload.include_sensitive_output)
+
+
+@app.post("/analyze-file", response_model=AnalyzeResponse)
+async def analyze_file(
+    file: UploadFile = File(...),
+    include_sensitive_output: bool = Form(True),
+):
+    """File-based privacy analysis pipeline."""
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in ALLOWED_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported file type: '{ext}'. Allowed: {', '.join(sorted(ALLOWED_EXTENSIONS))}",
+        )
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        text = pii_detector._load_text(tmp_path)
+
+        return _run_pipeline(text, include_sensitive_output)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)

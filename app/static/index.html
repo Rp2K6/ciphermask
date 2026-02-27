@@ -10,7 +10,19 @@
     body { font-family: 'Inter', ui-sans-serif, system-ui, sans-serif; }
     .scrollable { max-height: 320px; overflow-y: auto; }
     #redactedOutput { white-space: pre-wrap; word-break: break-word; }
-    textarea:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; }
+    textarea:focus, input[type="file"]:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; }
+    .json-key { color: #818cf8; }
+    .json-string { color: #34d399; }
+    .json-number { color: #fbbf24; }
+    .json-bool { color: #f472b6; }
+    .json-null { color: #6b7280; }
+    .drop-active { border-color: #6366f1 !important; background: rgba(99,102,241,0.05) !important; }
+    .toggle-wrapper {
+      transition: background-color 0.2s ease;
+    }
+    .toggle-dot {
+      transition: transform 0.2s ease;
+    }
   </style>
 </head>
 <body class="bg-gray-950 text-gray-100 min-h-screen">
@@ -28,7 +40,43 @@
 
   <main class="max-w-7xl mx-auto px-6 py-8 space-y-8">
 
-    <!-- Input Section -->
+    <!-- Toggle Controls -->
+    <section class="bg-gray-900 rounded-2xl p-4 border border-gray-800 space-y-4">
+      <!-- Privacy Toggle -->
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-300">Include Sensitive Output</p>
+          <p id="sensitiveHint" class="text-[11px] text-gray-500 mt-0.5">When off, redacted text and detected entities are not returned from the server.</p>
+        </div>
+        <button
+          id="sensitiveToggle"
+          type="button"
+          role="switch"
+          aria-checked="true"
+          class="toggle-wrapper relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-indigo-600"
+        >
+          <span class="toggle-dot pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 translate-x-5"></span>
+        </button>
+      </div>
+      <!-- JSON Toggle -->
+      <div class="flex items-center justify-between border-t border-gray-800 pt-4">
+        <div>
+          <p class="text-sm font-medium text-gray-300">Show Technical JSON</p>
+          <p class="text-[11px] text-gray-500 mt-0.5">Toggle visibility of the raw JSON response panel.</p>
+        </div>
+        <button
+          id="jsonToggle"
+          type="button"
+          role="switch"
+          aria-checked="false"
+          class="toggle-wrapper relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent bg-gray-600"
+        >
+          <span class="toggle-dot pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow ring-0 translate-x-0"></span>
+        </button>
+      </div>
+    </section>
+
+    <!-- Text Input Section -->
     <section class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
       <label for="inputText" class="block text-sm font-medium text-gray-300 mb-2">Paste text for analysis</label>
       <textarea
@@ -40,8 +88,8 @@
       <div class="mt-4 flex items-center gap-4">
         <button
           id="analyzeBtn"
-          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition"
-        >Analyze</button>
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+        >Analyze Text</button>
         <button
           id="clearBtn"
           class="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-xl transition"
@@ -50,22 +98,68 @@
       </div>
     </section>
 
+    <!-- Divider -->
+    <div class="flex items-center gap-4">
+      <div class="flex-1 border-t border-gray-800"></div>
+      <span class="text-xs text-gray-600 uppercase tracking-widest">or upload a file</span>
+      <div class="flex-1 border-t border-gray-800"></div>
+    </div>
+
+    <!-- File Upload Section -->
+    <section class="bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <label class="block text-sm font-medium text-gray-300 mb-3">Upload a file for analysis</label>
+      <div
+        id="dropZone"
+        class="border-2 border-dashed border-gray-700 rounded-xl p-8 text-center transition mb-4 cursor-pointer"
+      >
+        <svg class="w-10 h-10 mx-auto text-gray-600 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+            d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+        </svg>
+        <p class="text-sm text-gray-400 mb-1">Drag &amp; drop a file here, or <span class="text-indigo-400 underline">browse</span></p>
+        <p class="text-[11px] text-gray-600">.txt, .csv, .pdf, .docx, .png, .jpg, .jpeg</p>
+        <input
+          type="file"
+          id="fileInput"
+          class="hidden"
+          accept=".txt,.csv,.pdf,.docx,.png,.jpg,.jpeg"
+        />
+      </div>
+      <div class="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+        <div id="fileChip" class="hidden flex items-center gap-2 px-3 py-1.5 bg-gray-800 border border-gray-700 rounded-lg text-sm">
+          <svg class="w-4 h-4 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+          <span id="fileName" class="text-gray-300 truncate max-w-[200px]"></span>
+          <button id="fileClearBtn" class="text-gray-500 hover:text-red-400 transition ml-1" title="Remove file">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+          </button>
+        </div>
+        <button
+          id="uploadBtn"
+          class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded-xl transition disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled
+        >Analyze File</button>
+        <span id="fileStatusMsg" class="text-xs text-gray-500"></span>
+      </div>
+    </section>
+
     <!-- Scorecards -->
     <section id="scorecards" class="hidden grid grid-cols-1 sm:grid-cols-3 gap-5">
-      <!-- Risk Score -->
       <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
         <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Risk Score</p>
-        <p id="riskScore" class="text-5xl font-extrabold text-red-400">—</p>
+        <p id="riskScore" class="text-5xl font-extrabold text-red-400">&mdash;</p>
       </div>
-      <!-- Safety Score -->
       <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center">
         <p class="text-xs uppercase tracking-wider text-gray-500 mb-1">Safety Score</p>
-        <p id="safetyScore" class="text-5xl font-extrabold text-emerald-400">—</p>
+        <p id="safetyScore" class="text-5xl font-extrabold text-emerald-400">&mdash;</p>
       </div>
-      <!-- Compliance -->
       <div class="bg-gray-900 rounded-2xl p-6 border border-gray-800 text-center flex flex-col items-center justify-center">
         <p class="text-xs uppercase tracking-wider text-gray-500 mb-2">Compliance Status</p>
-        <span id="complianceBadge" class="inline-block px-4 py-1.5 rounded-full text-sm font-bold">—</span>
+        <span id="complianceBadge" class="inline-block px-4 py-1.5 rounded-full text-sm font-bold">&mdash;</span>
       </div>
     </section>
 
@@ -109,6 +203,27 @@
       ></div>
     </section>
 
+    <!-- JSON Response -->
+    <section id="jsonSection" class="hidden bg-gray-900 rounded-2xl p-6 border border-gray-800">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-400">JSON Response</h3>
+        <button
+          id="copyJsonBtn"
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-400 text-xs rounded-lg transition"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+          </svg>
+          <span id="copyJsonLabel">Copy</span>
+        </button>
+      </div>
+      <pre
+        id="jsonOutput"
+        class="bg-gray-950 border border-gray-800 rounded-xl px-5 py-4 text-xs leading-relaxed overflow-auto max-h-[400px] font-mono"
+      ></pre>
+    </section>
+
   </main>
 
   <footer class="border-t border-gray-800 mt-12 py-4 text-center text-xs text-gray-600">
@@ -116,13 +231,17 @@
   </footer>
 
 <script>
-// ---------------------------------------------------------------------------
-// DOM refs
-// ---------------------------------------------------------------------------
 const inputText       = document.getElementById('inputText');
 const analyzeBtn      = document.getElementById('analyzeBtn');
 const clearBtn        = document.getElementById('clearBtn');
 const statusMsg       = document.getElementById('statusMsg');
+const fileInput       = document.getElementById('fileInput');
+const fileName        = document.getElementById('fileName');
+const fileChip        = document.getElementById('fileChip');
+const fileClearBtn    = document.getElementById('fileClearBtn');
+const uploadBtn       = document.getElementById('uploadBtn');
+const fileStatusMsg   = document.getElementById('fileStatusMsg');
+const dropZone        = document.getElementById('dropZone');
 const scorecards      = document.getElementById('scorecards');
 const riskScoreEl     = document.getElementById('riskScore');
 const safetyScoreEl   = document.getElementById('safetyScore');
@@ -132,16 +251,109 @@ const entitiesSection = document.getElementById('entitiesSection');
 const entitiesBody    = document.getElementById('entitiesBody');
 const redactedSection = document.getElementById('redactedSection');
 const redactedOutput  = document.getElementById('redactedOutput');
+const jsonSection     = document.getElementById('jsonSection');
+const jsonOutput      = document.getElementById('jsonOutput');
+const copyJsonBtn     = document.getElementById('copyJsonBtn');
+const copyJsonLabel   = document.getElementById('copyJsonLabel');
+const sensitiveToggle = document.getElementById('sensitiveToggle');
+const sensitiveHint   = document.getElementById('sensitiveHint');
+const jsonToggle      = document.getElementById('jsonToggle');
 
 let categoryChart = null;
 let labelChart    = null;
+let lastJsonData  = null;
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+let includeSensitiveOutput = true;
+let toggleLocked = false;
+let jsonVisible  = false;
+let hasResults   = false;
+
 function show(...els) { els.forEach(el => el.classList.remove('hidden')); }
 function hide(...els) { els.forEach(el => el.classList.add('hidden')); }
 
+function escapeHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+// --- Privacy toggle ---
+function updateSensitiveToggleUI() {
+  const dot = sensitiveToggle.querySelector('.toggle-dot');
+  if (includeSensitiveOutput) {
+    sensitiveToggle.classList.remove('bg-gray-600');
+    sensitiveToggle.classList.add('bg-indigo-600');
+    sensitiveToggle.setAttribute('aria-checked', 'true');
+    dot.style.transform = 'translateX(1.25rem)';
+  } else {
+    sensitiveToggle.classList.remove('bg-indigo-600');
+    sensitiveToggle.classList.add('bg-gray-600');
+    sensitiveToggle.setAttribute('aria-checked', 'false');
+    dot.style.transform = 'translateX(0)';
+  }
+  if (toggleLocked) {
+    sensitiveToggle.classList.add('opacity-50', 'cursor-not-allowed');
+    sensitiveHint.textContent = 'Locked — clear input or change text/file to unlock.';
+  } else {
+    sensitiveToggle.classList.remove('opacity-50', 'cursor-not-allowed');
+    sensitiveHint.textContent = 'When off, redacted text and detected entities are not returned from the server.';
+  }
+}
+
+function lockToggle() {
+  toggleLocked = true;
+  updateSensitiveToggleUI();
+}
+
+function unlockToggle() {
+  toggleLocked = false;
+  updateSensitiveToggleUI();
+}
+
+sensitiveToggle.addEventListener('click', () => {
+  if (toggleLocked) return;
+  includeSensitiveOutput = !includeSensitiveOutput;
+  updateSensitiveToggleUI();
+});
+
+// --- JSON toggle ---
+function updateJsonToggleUI() {
+  const dot = jsonToggle.querySelector('.toggle-dot');
+  if (jsonVisible) {
+    jsonToggle.classList.remove('bg-gray-600');
+    jsonToggle.classList.add('bg-indigo-600');
+    jsonToggle.setAttribute('aria-checked', 'true');
+    dot.style.transform = 'translateX(1.25rem)';
+  } else {
+    jsonToggle.classList.remove('bg-indigo-600');
+    jsonToggle.classList.add('bg-gray-600');
+    jsonToggle.setAttribute('aria-checked', 'false');
+    dot.style.transform = 'translateX(0)';
+  }
+  if (jsonVisible && hasResults) {
+    show(jsonSection);
+  } else {
+    hide(jsonSection);
+  }
+}
+
+jsonToggle.addEventListener('click', () => {
+  jsonVisible = !jsonVisible;
+  updateJsonToggleUI();
+});
+
+// --- Input change listeners to unlock privacy toggle ---
+inputText.addEventListener('input', () => {
+  unlockToggle();
+});
+
+fileInput.addEventListener('change', () => {
+  const file = fileInput.files[0];
+  if (file) { setFile(file); } else { clearFile(); }
+  unlockToggle();
+});
+
+// --- Colors ---
 function complianceColor(status) {
   if (status.startsWith('CRITICAL'))  return { bg: 'bg-red-600',    text: 'text-white' };
   if (status.startsWith('HIGH'))      return { bg: 'bg-orange-500', text: 'text-white' };
@@ -173,9 +385,26 @@ function destroyCharts() {
   if (labelChart)    { labelChart.destroy();    labelChart = null; }
 }
 
-// ---------------------------------------------------------------------------
-// Chart rendering
-// ---------------------------------------------------------------------------
+function syntaxHighlight(json) {
+  const s = JSON.stringify(json, null, 2);
+  return escapeHtml(s).replace(
+    /("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")\s*:/g,
+    '<span class="json-key">$1</span>:'
+  ).replace(
+    /:\s*("(\\u[\da-fA-F]{4}|\\[^u]|[^\\"])*")/g,
+    ': <span class="json-string">$1</span>'
+  ).replace(
+    /:\s*(-?\d+(\.\d+)?([eE][+-]?\d+)?)/g,
+    ': <span class="json-number">$1</span>'
+  ).replace(
+    /:\s*(true|false)/g,
+    ': <span class="json-bool">$1</span>'
+  ).replace(
+    /:\s*(null)/g,
+    ': <span class="json-null">$1</span>'
+  );
+}
+
 function renderCategoryChart(dist) {
   const labels = Object.keys(dist);
   const data   = Object.values(dist);
@@ -229,9 +458,6 @@ function renderLabelChart(dist) {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Entities table
-// ---------------------------------------------------------------------------
 function renderEntities(entities) {
   entitiesBody.innerHTML = '';
   entities.forEach((e, i) => {
@@ -248,17 +474,7 @@ function renderEntities(entities) {
   });
 }
 
-function escapeHtml(str) {
-  const d = document.createElement('div');
-  d.textContent = str;
-  return d.innerHTML;
-}
-
-// ---------------------------------------------------------------------------
-// Redacted text with highlights
-// ---------------------------------------------------------------------------
 function renderRedacted(text) {
-  // Highlight bracketed placeholders
   const escaped = escapeHtml(text);
   redactedOutput.innerHTML = escaped.replace(
     /\[([A-Z_]+)\]/g,
@@ -266,40 +482,9 @@ function renderRedacted(text) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// API call
-// ---------------------------------------------------------------------------
-async function analyze() {
-  const text = inputText.value.trim();
-  if (!text) { statusMsg.textContent = 'Please enter some text.'; return; }
-
-  analyzeBtn.disabled = true;
-  analyzeBtn.textContent = 'Analyzing...';
-  statusMsg.textContent = '';
-
-  try {
-    const res = await fetch('/analyze', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || `HTTP ${res.status}`);
-    }
-    const data = await res.json();
-    renderResults(data);
-  } catch (err) {
-    statusMsg.textContent = `Error: ${err.message}`;
-    hide(scorecards, chartsSection, entitiesSection, redactedSection);
-  } finally {
-    analyzeBtn.disabled = false;
-    analyzeBtn.textContent = 'Analyze';
-  }
-}
-
 function renderResults(data) {
-  // Scorecards
+  hasResults = true;
+
   riskScoreEl.textContent = data.risk_score;
   riskScoreEl.className   = `text-5xl font-extrabold ${riskColor(data.risk_score)}`;
 
@@ -312,39 +497,177 @@ function renderResults(data) {
 
   show(scorecards);
 
-  // Charts
   destroyCharts();
   renderCategoryChart(data.category_distribution);
   renderLabelChart(data.label_distribution);
   show(chartsSection);
 
-  // Entities
-  renderEntities(data.detected_entities);
-  show(entitiesSection);
+  // Entities: only render if backend returned them
+  if (Array.isArray(data.detected_entities)) {
+    renderEntities(data.detected_entities);
+    show(entitiesSection);
+  } else {
+    entitiesBody.innerHTML = '';
+    hide(entitiesSection);
+  }
 
-  // Redacted text
-  renderRedacted(data.redacted_text);
-  show(redactedSection);
+  // Redacted text: only render if backend returned it
+  if (typeof data.redacted_text === 'string') {
+    renderRedacted(data.redacted_text);
+    show(redactedSection);
+  } else {
+    redactedOutput.innerHTML = '';
+    hide(redactedSection);
+  }
 
-  statusMsg.textContent = `Done — ${data.detected_entities.length} entities detected.`;
+  // JSON response: populate data, visibility controlled by jsonVisible
+  lastJsonData = data;
+  jsonOutput.innerHTML = syntaxHighlight(data);
+  updateJsonToggleUI();
 }
 
-// ---------------------------------------------------------------------------
-// Clear
-// ---------------------------------------------------------------------------
+// --- Text analysis ---
+async function analyze() {
+  const text = inputText.value.trim();
+  if (!text) { statusMsg.textContent = 'Please enter some text.'; return; }
+
+  analyzeBtn.disabled = true;
+  analyzeBtn.textContent = 'Analyzing...';
+  statusMsg.textContent = '';
+  lockToggle();
+
+  try {
+    const res = await fetch('/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, include_sensitive_output: includeSensitiveOutput }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderResults(data);
+    const count = data.detected_entities ? data.detected_entities.length : 0;
+    statusMsg.textContent = `Done \u2014 ${count} entities detected.`;
+  } catch (err) {
+    statusMsg.textContent = `Error: ${err.message}`;
+    hasResults = false;
+    hide(scorecards, chartsSection, entitiesSection, redactedSection, jsonSection);
+    unlockToggle();
+  } finally {
+    analyzeBtn.disabled = false;
+    analyzeBtn.textContent = 'Analyze Text';
+  }
+}
+
+// --- File handling ---
+function setFile(file) {
+  if (!file) return;
+  const allowed = ['.txt','.csv','.pdf','.docx','.png','.jpg','.jpeg'];
+  const ext = '.' + file.name.split('.').pop().toLowerCase();
+  if (!allowed.includes(ext)) {
+    fileStatusMsg.textContent = `Unsupported file type: ${ext}`;
+    return;
+  }
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  fileInput.files = dt.files;
+  fileName.textContent = file.name;
+  show(fileChip);
+  uploadBtn.disabled = false;
+  fileStatusMsg.textContent = '';
+}
+
+function clearFile() {
+  fileInput.value = '';
+  fileName.textContent = '';
+  hide(fileChip);
+  uploadBtn.disabled = true;
+  fileStatusMsg.textContent = '';
+}
+
+fileClearBtn.addEventListener('click', () => {
+  clearFile();
+  unlockToggle();
+});
+
+dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drop-active'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drop-active'));
+dropZone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropZone.classList.remove('drop-active');
+  if (e.dataTransfer.files.length) {
+    setFile(e.dataTransfer.files[0]);
+    unlockToggle();
+  }
+});
+
+async function analyzeFile() {
+  const file = fileInput.files[0];
+  if (!file) { fileStatusMsg.textContent = 'Please select a file.'; return; }
+
+  uploadBtn.disabled = true;
+  uploadBtn.textContent = 'Analyzing...';
+  fileStatusMsg.textContent = '';
+  lockToggle();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('include_sensitive_output', includeSensitiveOutput);
+
+    const res = await fetch('/analyze-file', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    renderResults(data);
+    const count = data.detected_entities ? data.detected_entities.length : 0;
+    fileStatusMsg.textContent = `Done \u2014 ${count} entities detected from "${file.name}".`;
+  } catch (err) {
+    fileStatusMsg.textContent = `Error: ${err.message}`;
+    hasResults = false;
+    hide(scorecards, chartsSection, entitiesSection, redactedSection, jsonSection);
+    unlockToggle();
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = 'Analyze File';
+  }
+}
+
+// --- Copy JSON ---
+copyJsonBtn.addEventListener('click', () => {
+  if (!lastJsonData) return;
+  navigator.clipboard.writeText(JSON.stringify(lastJsonData, null, 2)).then(() => {
+    copyJsonLabel.textContent = 'Copied!';
+    setTimeout(() => { copyJsonLabel.textContent = 'Copy'; }, 1500);
+  });
+});
+
+// --- Clear ---
 function clearAll() {
   inputText.value = '';
   statusMsg.textContent = '';
-  hide(scorecards, chartsSection, entitiesSection, redactedSection);
+  clearFile();
+  hasResults = false;
+  hide(scorecards, chartsSection, entitiesSection, redactedSection, jsonSection);
   destroyCharts();
   entitiesBody.innerHTML = '';
   redactedOutput.innerHTML = '';
+  jsonOutput.innerHTML = '';
+  lastJsonData = null;
+  unlockToggle();
 }
 
-// ---------------------------------------------------------------------------
-// Event bindings
-// ---------------------------------------------------------------------------
+// --- Bindings ---
 analyzeBtn.addEventListener('click', analyze);
+uploadBtn.addEventListener('click', analyzeFile);
 clearBtn.addEventListener('click', clearAll);
 inputText.addEventListener('keydown', (e) => {
   if (e.ctrlKey && e.key === 'Enter') analyze();
