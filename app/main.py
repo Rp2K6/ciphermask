@@ -7,6 +7,7 @@ and exposes the ``POST /analyze`` and ``POST /analyze-file`` endpoints.
 
 from __future__ import annotations
 
+import io
 import os
 import tempfile
 from contextlib import asynccontextmanager
@@ -15,7 +16,7 @@ from pathlib import Path
 import spacy
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import SPACY_MODEL
@@ -29,6 +30,7 @@ from app.services import (
     classifier,
     compliance_engine,
     distribution_engine,
+    image_redactor,
     pii_detector,
     redaction_engine,
     risk_engine,
@@ -139,6 +141,58 @@ async def analyze_file(
         text = pii_detector._load_text(tmp_path)
 
         return _run_pipeline(text, include_sensitive_output)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
+
+
+@app.post("/download-redacted")
+async def download_redacted(
+    redacted_text: str = Form(...),
+    filename: str = Form("redacted_output.txt"),
+):
+    """Return redacted text as a downloadable file."""
+    ext = os.path.splitext(filename)[1].lower()
+    media_type = "text/csv" if ext == ".csv" else "text/plain"
+
+    buf = io.BytesIO(redacted_text.encode("utf-8"))
+    return StreamingResponse(
+        buf,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg"}
+
+
+@app.post("/redact-image")
+async def redact_image(file: UploadFile = File(...)):
+    """Redact PII from an uploaded image and return the redacted PNG."""
+    filename = file.filename or ""
+    ext = os.path.splitext(filename)[1].lower()
+
+    if ext not in IMAGE_EXTENSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Only image files are supported. Allowed: {', '.join(sorted(IMAGE_EXTENSIONS))}",
+        )
+
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp_path = tmp.name
+
+        redacted_bytes = image_redactor.redact_image(tmp_path)
+
+        dl_filename = f"redacted_{filename}"
+        return StreamingResponse(
+            io.BytesIO(redacted_bytes),
+            media_type="image/png",
+            headers={"Content-Disposition": f'attachment; filename="{dl_filename}"'},
+        )
     finally:
         if tmp_path and os.path.exists(tmp_path):
             os.unlink(tmp_path)

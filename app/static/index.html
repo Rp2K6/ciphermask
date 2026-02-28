@@ -65,11 +65,7 @@
   <header class="border-b border-gray-800/60 bg-gray-900/60 backdrop-blur-xl sticky top-0 z-30">
     <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
       <div class="flex items-center gap-3">
-        <div class="w-9 h-9 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
-          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
-          </svg>
-        </div>
+        <img src="/static/logo.png" alt="CipherMask Logo" class="h-20 w-28 rounded-lg object-contain">
         <div>
           <h1 class="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">CipherMask &ndash; AI Privacy Intelligence</h1>
           <p class="text-[11px] text-gray-500 mt-0.5">Detect &middot; Quantify &middot; Sanitize</p>
@@ -239,7 +235,18 @@
 
     <!-- Redacted Text -->
     <section id="redactedSection" class="hidden card rounded-2xl p-6">
-      <h3 class="text-sm font-semibold text-gray-400 mb-4">Redacted Text</h3>
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-gray-400">Redacted Text</h3>
+        <button
+          id="downloadRedactedBtn"
+          class="btn-primary flex items-center gap-1.5 px-4 py-2 text-white text-xs font-semibold rounded-lg"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Download Redacted File
+        </button>
+      </div>
       <div
         id="redactedOutput"
         class="bg-gray-950/60 border border-gray-800/50 rounded-xl px-5 py-4 text-sm text-gray-300 scrollable"
@@ -301,10 +308,14 @@ const copyJsonLabel   = document.getElementById('copyJsonLabel');
 const sensitiveToggle = document.getElementById('sensitiveToggle');
 const sensitiveHint   = document.getElementById('sensitiveHint');
 const jsonToggle      = document.getElementById('jsonToggle');
+const downloadRedactedBtn = document.getElementById('downloadRedactedBtn');
 
 let categoryChart = null;
 let labelChart    = null;
 let lastJsonData  = null;
+let lastRedactedText = null;
+let lastSourceFilename = null;
+let lastUploadedFile = null;
 
 let includeSensitiveOutput = true;
 let toggleLocked = false;
@@ -556,9 +567,11 @@ function renderResults(data) {
 
   // Redacted text: only render if backend returned it
   if (typeof data.redacted_text === 'string') {
+    lastRedactedText = data.redacted_text;
     renderRedacted(data.redacted_text);
     show(redactedSection);
   } else {
+    lastRedactedText = null;
     redactedOutput.innerHTML = '';
     hide(redactedSection);
   }
@@ -590,12 +603,17 @@ async function analyze() {
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
     const data = await res.json();
+    lastSourceFilename = null;
+    lastUploadedFile = null;
     renderResults(data);
     const count = data.detected_entities ? data.detected_entities.length : 0;
     statusMsg.textContent = `Done \u2014 ${count} entities detected.`;
   } catch (err) {
     statusMsg.textContent = `Error: ${err.message}`;
     hasResults = false;
+    lastRedactedText = null;
+    lastSourceFilename = null;
+    lastUploadedFile = null;
     hide(scorecards, chartsSection, entitiesSection, redactedSection, jsonSection);
     unlockToggle();
   } finally {
@@ -670,12 +688,17 @@ async function analyzeFile() {
       throw new Error(err.detail || `HTTP ${res.status}`);
     }
     const data = await res.json();
+    lastSourceFilename = file.name;
+    lastUploadedFile = file;
     renderResults(data);
     const count = data.detected_entities ? data.detected_entities.length : 0;
     fileStatusMsg.textContent = `Done \u2014 ${count} entities detected from "${file.name}".`;
   } catch (err) {
     fileStatusMsg.textContent = `Error: ${err.message}`;
     hasResults = false;
+    lastRedactedText = null;
+    lastSourceFilename = null;
+    lastUploadedFile = null;
     hide(scorecards, chartsSection, entitiesSection, redactedSection, jsonSection);
     unlockToggle();
   } finally {
@@ -693,6 +716,55 @@ copyJsonBtn.addEventListener('click', () => {
   });
 });
 
+// --- Download Redacted File ---
+const IMAGE_EXTS = ['.png', '.jpg', '.jpeg'];
+
+function isImageFile(name) {
+  if (!name) return false;
+  const ext = name.slice(name.lastIndexOf('.')).toLowerCase();
+  return IMAGE_EXTS.includes(ext);
+}
+
+downloadRedactedBtn.addEventListener('click', async () => {
+  if (!lastRedactedText) return;
+
+  const dlFilename = lastSourceFilename
+    ? 'redacted_' + lastSourceFilename
+    : 'redacted_output.txt';
+
+  try {
+    let blob;
+
+    if (lastUploadedFile && isImageFile(lastSourceFilename)) {
+      // Image path: POST original file to /redact-image
+      const formData = new FormData();
+      formData.append('file', lastUploadedFile);
+      const res = await fetch('/redact-image', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      blob = await res.blob();
+    } else {
+      // Text path: POST redacted text to /download-redacted
+      const formData = new FormData();
+      formData.append('redacted_text', lastRedactedText);
+      formData.append('filename', dlFilename);
+      const res = await fetch('/download-redacted', { method: 'POST', body: formData });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      blob = await res.blob();
+    }
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = dlFilename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Download failed:', err);
+  }
+});
+
 // --- Clear ---
 function clearAll() {
   inputText.value = '';
@@ -705,6 +777,9 @@ function clearAll() {
   redactedOutput.innerHTML = '';
   jsonOutput.innerHTML = '';
   lastJsonData = null;
+  lastRedactedText = null;
+  lastSourceFilename = null;
+  lastUploadedFile = null;
   unlockToggle();
 }
 
